@@ -23,6 +23,8 @@ a = Analysis(
     hookspath=[],
     runtime_hooks=[],
     excludes=["matplotlib", "numpy", "scipy"],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
 )
@@ -30,18 +32,23 @@ a = Analysis(
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 if IS_MAC:
-    # macOS: .app 번들로 생성
+    # ── macOS: .app 번들 ──────────────────────────────────────────────────
     exe = EXE(
-        pyz, a.scripts, [],
+        pyz,
+        a.scripts,
+        [],
         exclude_binaries=True,
         name="ImageConverterPro",
         debug=False,
         strip=False,
-        upx=False,          # macOS에서 UPX 비권장
+        upx=False,
         console=False,
     )
     coll = COLLECT(
-        exe, a.binaries, a.zipfiles, a.datas,
+        exe,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
         strip=False,
         upx=False,
         name="ImageConverterPro",
@@ -49,22 +56,33 @@ if IS_MAC:
     app = BUNDLE(
         coll,
         name="ImageConverterPro.app",
-        icon=None,           # "assets/icon.icns" 로 교체 가능
+        icon=None,  # "assets/icon.icns" 로 교체 가능
         bundle_identifier="com.yourname.imageconverterpro",
         info_plist={
             "NSHighResolutionCapable": True,
+            "NSRequiresAquaSystemAppearance": False,
             "LSMinimumSystemVersion": "10.13.0",
             "CFBundleShortVersionString": "1.0.0",
+            "CFBundleName": "Image Converter Pro",
         },
     )
+
 else:
-    # Windows / Linux: 단일 실행 파일
+    # ── Windows / Linux: 단일 실행 파일 ──────────────────────────────────
     exe = EXE(
-        pyz, a.scripts, a.binaries, a.zipfiles, a.datas, [],
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        [],
         name="ImageConverterPro",
         debug=False,
+        bootloader_ignore_signals=False,
         strip=False,
         upx=True,
+        upx_exclude=[],
+        runtime_tmpdir=None,
         console=False,
-        # icon="assets/icon.ico",  # Windows 아이콘
+        # icon="assets/icon.ico",  # Windows 아이콘 (선택)
     )

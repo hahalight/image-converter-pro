@@ -4,19 +4,17 @@ on:
   push:
     tags:
       - "v*.*.*"
-  workflow_dispatch:         # allow manual trigger from GitHub UI
+  workflow_dispatch:
 
 permissions:
-  contents: write            # needed to create GitHub Releases
+  contents: write
 
 jobs:
-  # ────────────────────────────────────────────────────────────────────
-  # Windows EXE  (runs on GitHub-hosted Windows runner — no Wine needed)
-  # ────────────────────────────────────────────────────────────────────
+
+  # ── Windows EXE ────────────────────────────────────────────────────────────
   build-windows:
     name: Build Windows EXE
     runs-on: windows-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,32 +30,22 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build EXE with PyInstaller
-        run: |
-          pyinstaller ImageConverterPro.spec `
-            --distpath dist/windows `
-            --workpath build/windows `
-            --noconfirm
+      - name: Build EXE
+        run: pyinstaller ImageConverterPro.spec --distpath dist/windows --workpath build/windows --noconfirm
 
-      - name: Zip the EXE
-        run: |
-          Compress-Archive `
-            -Path dist/windows/ImageConverterPro.exe `
-            -DestinationPath dist/ImageConverterPro-Windows-x64.zip
+      - name: Zip EXE
+        run: Compress-Archive -Path dist/windows/ImageConverterPro.exe -DestinationPath dist/ImageConverterPro-Windows-x64.zip
 
-      - name: Upload Windows artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ImageConverterPro-Windows
           path: dist/ImageConverterPro-Windows-x64.zip
 
-  # ────────────────────────────────────────────────────────────────────
-  # Linux binary  (Docker-based build)
-  # ────────────────────────────────────────────────────────────────────
+  # ── Linux binary (Docker) ──────────────────────────────────────────────────
   build-linux:
-    name: Build Linux Binary (Docker)
+    name: Build Linux Binary
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,77 +53,76 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Linux binary inside Docker
+      - name: Build inside Docker
         run: |
           mkdir -p dist/linux
           docker build --target linux-build -t imgconv-builder .
           docker run --rm -v "$PWD/dist/linux":/out imgconv-builder
 
-      - name: Tar the Linux binary
-        run: |
-          tar -czf dist/ImageConverterPro-Linux-x64.tar.gz \
-            -C dist/linux ImageConverterPro
+      - name: Tar binary
+        run: tar -czf dist/ImageConverterPro-Linux-x64.tar.gz -C dist/linux ImageConverterPro
 
-      - name: Upload Linux artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ImageConverterPro-Linux
           path: dist/ImageConverterPro-Linux-x64.tar.gz
 
-  # ────────────────────────────────────────────────────────────────────
-  # macOS binary
-  # ────────────────────────────────────────────────────────────────────
+  # ── macOS .app + DMG ───────────────────────────────────────────────────────
   build-macos:
-  name: Build macOS .app + DMG
-  runs-on: macos-latest
+    name: Build macOS App
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  steps:
-    - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    - uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
 
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
-        pip install pyinstaller
-        brew install create-dmg
+      - name: Install create-dmg
+        run: brew install create-dmg
 
-    - name: Build .app bundle
-      run: |
-        pyinstaller ImageConverterPro.spec \
-          --distpath dist/macos \
-          --workpath build/macos \
-          --noconfirm
+      - name: Build .app bundle
+        run: |
+          pyinstaller ImageConverterPro.spec \
+            --distpath dist/macos \
+            --workpath build/macos \
+            --noconfirm
 
-    - name: Package as DMG
-      run: |
-        create-dmg \
-          --volname "Image Converter Pro" \
-          --window-size 500 300 \
-          --app-drop-link 350 150 \
-          dist/ImageConverterPro-macOS.dmg \
-          dist/macos/ImageConverterPro.app || \
-        # create-dmg가 없으면 zip으로 대체
-        zip -r dist/ImageConverterPro-macOS.zip \
-          dist/macos/ImageConverterPro.app
+      - name: Package as DMG
+        run: |
+          if [ -d "dist/macos/ImageConverterPro.app" ]; then
+            create-dmg \
+              --volname "Image Converter Pro" \
+              --window-size 500 300 \
+              --app-drop-link 350 150 \
+              dist/ImageConverterPro-macOS.dmg \
+              dist/macos/ImageConverterPro.app || \
+            zip -r dist/ImageConverterPro-macOS.dmg.zip dist/macos/ImageConverterPro.app
+          else
+            zip -j dist/ImageConverterPro-macOS.dmg dist/macos/ImageConverterPro
+            mv dist/ImageConverterPro-macOS.dmg dist/ImageConverterPro-macOS-binary.zip
+          fi
 
-    - name: Upload macOS artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ImageConverterPro-macOS
-        path: dist/ImageConverterPro-macOS.*
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ImageConverterPro-macOS
+          path: dist/ImageConverterPro-macOS*
 
-  # ────────────────────────────────────────────────────────────────────
-  # GitHub Release  (only on version tag push)
-  # ────────────────────────────────────────────────────────────────────
+  # ── GitHub Release ─────────────────────────────────────────────────────────
   release:
     name: Create GitHub Release
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -149,22 +136,14 @@ jobs:
           body: |
             ## Image Converter Pro ${{ github.ref_name }}
 
-            ### Downloads
             | Platform | File |
             |----------|------|
             | Windows 10/11 (x64) | `ImageConverterPro-Windows-x64.zip` |
             | Linux (x64) | `ImageConverterPro-Linux-x64.tar.gz` |
-            | macOS (x64) | `ImageConverterPro-macOS-x64.zip` |
-
-            ### Features
-            - Convert between PNG, JPEG, WEBP, BMP, TIFF, GIF, APNG, ICO, AVIF, TGA
-            - Resize with aspect-ratio lock
-            - Full alpha channel support
-            - Animated GIF / WEBP / APNG conversion
-            - Sequence → individual frames extraction
-            - Individual frames → animation assembly
+            | macOS | `ImageConverterPro-macOS.dmg` |
           draft: false
           prerelease: false
           files: |
             release-assets/**/*.zip
             release-assets/**/*.tar.gz
+            release-assets/**/*.dmg
