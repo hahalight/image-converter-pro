@@ -132,20 +132,11 @@ def convert_single(
     quality: int = 90,
     bg_color: Tuple[int, int, int] = (255, 255, 255),
     frame_index: int = 0,
+    keep_alpha: bool = True,
 ) -> None:
     """
     Convert a single image (or one frame from an animated image).
-
-    Parameters
-    ----------
-    src_path   : source file path
-    dst_path   : destination file path (extension already adjusted)
-    fmt        : output format key, e.g. "PNG", "JPEG", "WEBP"
-    width/height: target dimensions (None = keep original)
-    keep_ratio : maintain aspect ratio when resizing
-    quality    : JPEG/WEBP quality (1-100)
-    bg_color   : background color for alpha-flattening
-    frame_index: which frame to extract from animated sources
+    keep_alpha: True=알파채널 유지(형식 지원 시), False=배경색으로 합성
     """
     fmt = fmt.upper()
     img = Image.open(src_path)
@@ -160,7 +151,7 @@ def convert_single(
     frame = _resize_frame(frame, new_size)
 
     # Alpha handling
-    if fmt in ALPHA_FORMATS:
+    if keep_alpha and fmt in ALPHA_FORMATS:
         out_img = frame  # keep RGBA
     else:
         out_img = _flatten_alpha(frame, bg_color)
@@ -201,6 +192,7 @@ def convert_animated(
     bg_color: Tuple[int, int, int] = (255, 255, 255),
     loop: int = 0,
     progress_cb: Optional[Callable[[int, int], None]] = None,
+    keep_alpha: bool = True,
 ) -> None:
     """
     Convert an animated image to another animated format.
@@ -233,39 +225,46 @@ def convert_animated(
     rest = processed[1:]
 
     if fmt == "GIF":
-        # GIF requires palette mode; flatten alpha onto bg
-        gif_frames = [_flatten_alpha(f, bg_color).convert("P", palette=Image.ADAPTIVE, colors=256)
-                      for f in processed]
+        # GIF: palette mode; keep_alpha=True preserves transparency index
+        gif_frames = []
+        for f in processed:
+            if keep_alpha and f.mode == "RGBA":
+                gif_frames.append(f.convert("P", palette=Image.ADAPTIVE, colors=255))
+            else:
+                gif_frames.append(_flatten_alpha(f, bg_color).convert("P", palette=Image.ADAPTIVE, colors=256))
         gif_frames[0].save(
             dst_path,
             format="GIF",
             save_all=True,
             append_images=gif_frames[1:],
             loop=loop,
-            duration=durations,
+            duration=list(durations),
             optimize=True,
         )
 
     elif fmt == "WEBP":
-        first.save(
+        first_out = first if keep_alpha else _flatten_alpha(first, bg_color)
+        rest_out  = [f if keep_alpha else _flatten_alpha(f, bg_color) for f in rest]
+        first_out.save(
             dst_path,
             format="WEBP",
             save_all=True,
-            append_images=rest,
+            append_images=rest_out,
             loop=loop,
-            duration=durations,
+            duration=list(durations),
             quality=quality,
             method=6,
         )
 
     elif fmt == "APNG":
+        # APNG natively supports full RGBA transparency
         first.save(
             dst_path,
             format="PNG",
             save_all=True,
             append_images=rest,
             loop=loop,
-            duration=durations,
+            duration=list(durations),
         )
 
 
@@ -315,6 +314,7 @@ def frames_to_animation(
     bg_color: Tuple[int, int, int] = (255, 255, 255),
     loop: int = 0,
     progress_cb: Optional[Callable[[int, int], None]] = None,
+    keep_alpha: bool = True,
 ) -> None:
     """
     Assemble a list of still images into an animated file (GIF / WEBP / APNG).
@@ -342,25 +342,31 @@ def frames_to_animation(
     durations = [duration_ms] * len(processed)
 
     if fmt == "GIF":
-        gif_frames = [_flatten_alpha(f, bg_color).convert("P", palette=Image.ADAPTIVE, colors=256)
-                      for f in processed]
+        gif_frames = []
+        for f in processed:
+            if keep_alpha and f.mode == "RGBA":
+                gif_frames.append(f.convert("P", palette=Image.ADAPTIVE, colors=255))
+            else:
+                gif_frames.append(_flatten_alpha(f, bg_color).convert("P", palette=Image.ADAPTIVE, colors=256))
         gif_frames[0].save(
             dst_path,
             format="GIF",
             save_all=True,
             append_images=gif_frames[1:],
             loop=loop,
-            duration=durations,
+            duration=list(durations),
             optimize=True,
         )
     elif fmt == "WEBP":
-        first.save(
+        first_out = first if keep_alpha else _flatten_alpha(first, bg_color)
+        rest_out  = [f if keep_alpha else _flatten_alpha(f, bg_color) for f in rest]
+        first_out.save(
             dst_path,
             format="WEBP",
             save_all=True,
-            append_images=rest,
+            append_images=rest_out,
             loop=loop,
-            duration=durations,
+            duration=list(durations),
             quality=quality,
             method=6,
         )
@@ -371,7 +377,7 @@ def frames_to_animation(
             save_all=True,
             append_images=rest,
             loop=loop,
-            duration=durations,
+            duration=list(durations),
         )
 
 
@@ -385,6 +391,7 @@ def animation_to_frames(
     quality: int = 90,
     bg_color: Tuple[int, int, int] = (255, 255, 255),
     progress_cb: Optional[Callable[[int, int], None]] = None,
+    keep_alpha: bool = True,
 ) -> List[str]:
     """
     Extract all frames from an animated image and save as individual files.
@@ -403,7 +410,7 @@ def animation_to_frames(
         new_size = _compute_size(frame.size, width, height, keep_ratio)
         frame = _resize_frame(frame, new_size)
 
-        if dst_fmt in ALPHA_FORMATS:
+        if keep_alpha and dst_fmt in ALPHA_FORMATS:
             out = frame
         else:
             out = _flatten_alpha(frame, bg_color)
