@@ -1,6 +1,6 @@
 # 🖼 Image Converter Pro
 
-[![Build & Release](https://github.com/YOUR_USERNAME/image-converter-pro/actions/workflows/build.yml/badge.svg)](https://github.com/YOUR_USERNAME/image-converter-pro/actions/workflows/build.yml)
+[![Build & Release](https://github.com/hahalight/image-converter-pro/actions/workflows/build.yml/badge.svg)](https://github.com/hahalight/image-converter-pro/actions/workflows/build.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
