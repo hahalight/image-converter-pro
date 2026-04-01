@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  # ── Build the Linux native binary ─────────────────────────────────
+  build-linux:
+    build:
+      context: .
+      target: linux-build
+    image: imgconv-builder:linux
+    volumes:
+      - ./dist:/out
+    profiles: ["linux"]
+
+  # ── Build via Wine (Windows EXE scaffold) ─────────────────────────
+  build-wine:
+    build:
+      context: .
+      target: wine-build
+    image: imgconv-builder:wine
+    volumes:
+      - ./dist:/out
+    profiles: ["wine"]
+
+  # ── Development / test environment ────────────────────────────────
+  dev:
+    build:
+      context: .
+      target: base
+    image: imgconv-dev
+    volumes:
+      - .:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix          # X11 forwarding for GUI
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+    working_dir: /app
+    command: python src/main.py
+    profiles: ["dev"]
