@@ -37,7 +37,7 @@ Download the latest release from the [Releases page](../../releases).
 ### Option B — Run from source
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/image-converter-pro.git
+git clone https://github.com/hahalight/image-converter-pro.git
 cd image-converter-pro
 pip install -r requirements.txt
 python src/main.py
