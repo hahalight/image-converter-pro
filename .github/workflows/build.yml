@@ -42,7 +42,7 @@ jobs:
           name: ImageConverterPro-Windows
           path: dist/ImageConverterPro-Windows-x64.zip
 
-  # ── Linux binary (Docker) ──────────────────────────────────────────────────
+  # ── Linux binary (PyInstaller 직접 빌드) ───────────────────────────────────
   build-linux:
     name: Build Linux Binary
     runs-on: ubuntu-latest
@@ -50,14 +50,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Build inside Docker
+      - name: Install system dependencies
         run: |
-          mkdir -p dist/linux
-          docker build --target linux-build -t imgconv-builder .
-          docker run --rm -v "$PWD/dist/linux":/out imgconv-builder
+          sudo apt-get update
+          sudo apt-get install -y python3-tk tk-dev libavif-dev
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build binary
+        run: |
+          pyinstaller ImageConverterPro.spec \
+            --distpath dist/linux \
+            --workpath build/linux \
+            --noconfirm
+
+      - name: Verify binary exists
+        run: ls -lh dist/linux/
 
       - name: Tar binary
         run: tar -czf dist/ImageConverterPro-Linux-x64.tar.gz -C dist/linux ImageConverterPro
